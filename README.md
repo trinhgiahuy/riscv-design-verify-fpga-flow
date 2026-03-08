@@ -1,0 +1,27 @@
+# 5-Stage RISC-V Processor on PYNQ-Z1 FPGA
+
+This project documents the end-to-end design and implementation of a 32-bit RISC-V processor developed incrementally in Verilog, starting from environment setup and testbench bring-up, then building the processor stage by stage, and finally mapping the completed 5-stage pipelined core onto a PYNQ-Z1 FPGA. The overall workflow covered Linux-based RTL development, Verilator simulation, trace-based verification, Vivado synthesis/implementation, and benchmark execution on hardware. The project began with setting up the course hardware-design environment and verification flow, including Git, Make, Linux bash, and Verilator, together with the repository structure used for design files, verification scripts, and signal probing. From there, the processor was constructed progressively: first by building a custom instruction memory, then a decode stage, register file, execute stage, memory/writeback path, a full single-cycle datapath, and later a fully pipelined fetch/decode/execute/memory/writeback architecture with hazard handling. 
+
+At the memory-system level, the design included a custom byte-addressable main memory model with little-endian organization, program loading through readmemh(), and a default program counter start address at 0x01000000. The instruction memory used combinational reads and sequential writes in the earlier stages of development, enabling the core to fetch and execute course benchmark binaries directly from .x files. This established the foundation for later instruction fetch and data-memory behavior in the processor. 
+
+The next stages focused on front-end and execution logic. The decode stage was implemented as combinational logic that split the fetched instruction into architectural fields, generated control-relevant outputs, and correctly handled padded and sign-extended immediates. The register file was then added with dual read ports, a destination write port, active-high write enable, and initialization of the stack pointer register. The execute stage implemented the ALU, branch comparison, branch target/effective-address computation, and instruction behaviors such as LUI and AUIPC, forming the computational core of the processor datapath. 
+
+The processor was then extended into a complete single-cycle datapath by implementing the memory and writeback stages. This included handling loads and stores across byte, half-word, and word granularities, adding an access_size interface for memory operations, selecting the correct writeback source from ALU/memory/PC paths, and completing the end-to-end architectural path needed to run benchmark programs correctly. At this stage, the processor effectively acted as a functional ISA-level execution engine for the supplied RISC-V test programs. 
+
+After the single-cycle design was working, the core was transformed into a true 5-stage pipelined processor with distinct fetch, decode, execute, memory, and writeback stages. This required inserting inter-stage pipeline registers, implementing data forwarding/bypassing paths such as MX, WX, and WM, supporting bypassing into the branch comparator, and introducing stall logic to resolve read-after-write hazards that could not be solved through forwarding alone. Structural hazards and inserted NOPs were also part of the control strategy needed to maintain correctness under pipelined execution. 
+
+A major part of the project was the verification methodology. The design used signal probes, stage-specific trace outputs, and provided golden traces for comparison against expected behavior. During development, the processor produced pipeline-stage traces such as [F], [D], [M], and [W], allowing cycle-level debugging of instruction flow, decoded fields, memory accesses, and writeback values. The project also used the provided rv32 benchmark suite, which included both individual instruction tests and simple programs, together with associated .c, .s, .d, and .x artifacts for validation. 
+
+In the final phase, the pipelined design was adapted for FPGA deployment on the PYNQ-Z1 using Vivado 2022.1. This required modifying the memory architecture so that instruction memory, data memory, and the register file could be inferred as block RAMs (BRAMs) instead of remaining purely behavioral models. Because BRAMs impose a 1-cycle read latency, the core had to be updated so that its pipelining, stalling, flushing, and bypassing logic remained correct under FPGA-realistic memory timing. The FPGA flow also involved checking resource utilization, targeting the xc7z020 device, meeting a 50 MHz timing target, generating overlay.bit, and validating correctness using both post-synthesis and post-implementation simulations with xsim before loading programs onto the board. 
+
+## Technical Highlights
+
+Hardware design: Verilog RTL for instruction memory, decode, register file, ALU/execute, memory, writeback, and full 5-stage pipeline. 
+
+Microarchitecture: pipeline registers, forwarding paths, RAW hazard detection, stall insertion, and control-path correctness across stage boundaries. 
+
+Verification: Verilator-based simulation, trace-driven debugging, golden-trace comparison, and benchmark validation using individual-instruction and simple-program tests. 
+
+FPGA implementation: Vivado synthesis, BRAM inference, static timing/resource checks, xsim post-synth/post-route validation, and hardware execution on PYNQ-Z1. 
+
+Toolchain: Linux, Git, Make, Verilator, Vivado, xsim, and RV32 benchmark binaries/toolchain artifacts. 
